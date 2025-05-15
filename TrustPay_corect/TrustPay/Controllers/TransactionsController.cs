@@ -173,7 +173,7 @@ namespace TrustPay.Controllers
             return _context.Transactions.Any(e => e.TransactionId == id);
         }
 
-      
+
         [HttpGet("history/{accountId}")]
         public async Task<IActionResult> GetTransactionHistoryByAccount(int accountId)
         {
