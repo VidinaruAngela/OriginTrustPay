@@ -148,6 +148,7 @@ function Dashboard({ user, onLogout }) {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
 
+
   const fetchAccounts = async () => {
     try {
       const response = await fetch(`https://localhost:7157/api/Accounts/user/${user.userId}`);
@@ -177,56 +178,62 @@ function Dashboard({ user, onLogout }) {
   };
 
   const transferFunds = async () => {
-    const parsedAmount = parseFloat(transferAmount);
-    if (!parsedAmount || parsedAmount <= 0) {
-      setMessageType('error');
-      setMessage("Suma introdusă nu este validă.");
-      return;
+  const parsedAmount = parseFloat(transferAmount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    setMessageType('error');
+    setMessage("Suma introdusă nu este validă.");
+    return;
+  }
+
+  if (fromAccountId === toAccountId) {
+    setMessageType('error');
+    setMessage("Nu poți transfera către același cont.");
+    return;
+  }
+
+  try {
+  const response = await fetch('https://localhost:7157/api/Transactions/transfer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fromAccountId,
+      toAccountId,
+      amount: parsedAmount,
+      currency: transferCurrency,
+      transactionType: "Transfer",
+      fromUserName,   // din state
+      toUserName
+    }),
+  });
+
+  if (response.ok) {
+    setMessageType('success');
+    setMessage("Transfer realizat cu succes!");
+    showConfirmationNotification?.("Transfer realizat cu succes!");
+    await fetchAccounts?.();
+    setShowTransferForm(false);
+    setTransferAmount('');
+    setTransferCurrency('RON');
+  } else {
+    const contentType = response.headers.get("Content-Type");
+    let errorText = '';
+
+    if (contentType && contentType.includes("application/json")) {
+      const errorData = await response.json();
+      errorText = errorData.message || JSON.stringify(errorData);
+    } else {
+      errorText = await response.text(); // Fallback pentru HTML sau text
     }
 
-    if (fromAccountId === toAccountId) {
-      setMessageType('error');
-      setMessage("Nu poți transfera către același cont.");
-      return;
-    }
+    setMessageType('error');
+    setMessage("Eroare la transfer: " + errorText);
+  }
+} catch (error) {
+  setMessageType('error');
+  setMessage("Eroare de rețea: " + error.message);
+}
+}
 
-    try {
-      const response = await fetch('https://localhost:7157/api/Transactions/transfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromAccountId,
-          toAccountId,
-          amount: parsedAmount,
-          currency: transferCurrency,
-          transactionType: "Transfer"
-        }),
-      });
-
-      if (response.ok) {
-        setMessageType('success');
-        setMessage("Transfer realizat cu succes!");
-        // Afișăm notificarea de confirmare
-        showConfirmationNotification("Transfer realizat cu succes!");
-        await fetchAccounts();
-        setShowTransferForm(false);
-        setTransferAmount('');
-        setTransferCurrency('RON');
-      } else {
-        const errorData = await response.json();
-        setMessageType('error');
-        setMessage("Eroare la transfer: " + (errorData.message || "necunoscută"));
-      }
-    } catch (error) {
-      setMessageType('error');
-      setMessage("Eroare: " + error.message);
-    }
-
-    setTimeout(() => {
-      setMessage('');
-      setMessageType('');
-    }, 5000);
-  };
 
   const transferBetweenUsers = async () => {
     const parsedAmount = parseFloat(amount);
