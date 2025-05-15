@@ -224,22 +224,6 @@
   },
   {
     "ContainingType": "TrustPay.Controllers.TransactionsController",
-    "Method": "GetTransactionsByAccount",
-    "RelativePath": "api/Transactions/account/{accountId}",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "accountId",
-        "Type": "System.Int32",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "TrustPay.Controllers.TransactionsController",
     "Method": "AddFunds",
     "RelativePath": "api/Transactions/addFunds",
     "HttpMethod": "POST",

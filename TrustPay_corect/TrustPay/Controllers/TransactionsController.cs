@@ -173,27 +173,22 @@ namespace TrustPay.Controllers
             return _context.Transactions.Any(e => e.TransactionId == id);
         }
 
-        [HttpGet("account/{accountId}")]
-        public async Task<IActionResult> GetTransactionsByAccount(int accountId)
-        {
-            var transactions = await _context.Transactions
-                .Where(t => t.FromAccountId == accountId || t.ToAccountId == accountId)
-                .OrderByDescending(t => t.TransactionDate)
-                .ToListAsync();
-
-            return Ok(transactions);
-        }
+      
         [HttpGet("history/{accountId}")]
         public async Task<IActionResult> GetTransactionHistoryByAccount(int accountId)
         {
             var transactions = await _context.Transactions
+                .Include(t => t.FromAccount)
+                    .ThenInclude(a => a.User)
+                .Include(t => t.ToAccount)
+                    .ThenInclude(a => a.User)
                 .Where(t => t.FromAccountId == accountId || t.ToAccountId == accountId)
                 .OrderByDescending(t => t.TransactionDate)
                 .Select(t => new
                 {
                     Message = t.FromAccountId == accountId
-                        ? $"🡒 Către contul {t.ToAccountId} — {t.Amount} {t.Currency} ({t.TransactionDate.ToString("dd.MM.yyyy, HH:mm")})"
-                        : $"🡐 De la contul {t.FromAccountId} — {t.Amount} {t.Currency} ({t.TransactionDate.ToString("dd.MM.yyyy, HH:mm")})"
+                        ? $"🡒 Către contul  {t.ToAccount.User.UserName} — {t.Amount} {t.Currency} ({t.TransactionDate.ToString("dd.MM.yyyy, HH:mm")})"
+                        : $"🡐 De la contul {t.FromAccount.User.UserName} — {t.Amount} {t.Currency} ({t.TransactionDate.ToString("dd.MM.yyyy, HH:mm")})"
                 })
                 .ToListAsync();
 
