@@ -95,6 +95,36 @@ const styles = {
   headerLogo: {
     width: '50px',  // Mărim logo-ul
     height: 'auto'
+  },
+  logoContainer: {
+    display: 'flex',
+    alignItems: 'center'
+  },
+  logoText: {
+    marginLeft: '10px',
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#fff'
+  },
+  // Stiluri pentru notificarea de confirmare
+  notification: {
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    padding: '12px 20px',
+    borderRadius: '8px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    zIndex: 1100,
+    fontSize: '15px',
+    fontWeight: '500',
+    transition: 'opacity 0.3s, transform 0.3s',
+    opacity: 1,
+    transform: 'translateY(0)'
+  },
+  successNotification: {
+    backgroundColor: '#e6f4ea',
+    color: '#137333',
+    border: '1px solid #ceead6'
   }
 };
 
@@ -114,6 +144,9 @@ function Dashboard({ user, onLogout }) {
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('RON');
   const [fromUserName, setFromUserName] = useState(user.userName);
+  // Nou state pentru notificarea de confirmare a transferului
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
 
   const fetchAccounts = async () => {
     try {
@@ -133,6 +166,15 @@ function Dashboard({ user, onLogout }) {
   useEffect(() => {
     fetchAccounts();
   }, [user.userId]);
+
+  // Funcție pentru afișarea notificării de confirmare
+  const showConfirmationNotification = (message) => {
+    setNotificationMessage(message);
+    setShowNotification(true);
+    setTimeout(() => {
+      setShowNotification(false);
+    }, 5000);
+  };
 
   const transferFunds = async () => {
     const parsedAmount = parseFloat(transferAmount);
@@ -164,6 +206,8 @@ function Dashboard({ user, onLogout }) {
       if (response.ok) {
         setMessageType('success');
         setMessage("Transfer realizat cu succes!");
+        // Afișăm notificarea de confirmare
+        showConfirmationNotification("Transfer realizat cu succes!");
         await fetchAccounts();
         setShowTransferForm(false);
         setTransferAmount('');
@@ -214,6 +258,8 @@ function Dashboard({ user, onLogout }) {
       if (response.ok) {
         setMessageType('success');
         setMessage("Transfer realizat cu succes!");
+        // Afișăm notificarea de confirmare
+        showConfirmationNotification("Transfer către utilizator realizat cu succes!");
         await fetchAccounts();
         setShowTransferForm(false);
         setAmount('');
@@ -247,7 +293,7 @@ function Dashboard({ user, onLogout }) {
     } catch (error) {
       console.error("Eroare la preluarea tranzacțiilor:", error);
       setMessageType("error");
-      setMessage("Eroare la preluarea tranzacțiilor.");
+      setMessage("Eroare la preluarea tranzacțiilor!");
       setTimeout(() => {
         setMessage("");
         setMessageType("");
@@ -277,9 +323,9 @@ function Dashboard({ user, onLogout }) {
   return (
     <div className="app-container">
       <header className="header">
-        <div className="header-left">
+        <div className="header-left" style={styles.logoContainer}>
           <img src={logo} alt="TrustPay Logo" style={styles.headerLogo} />
-          {/* Am eliminat textul TrustPay de lângă logo */}
+          <span style={styles.logoText}>Trust Pay - Siguranța banilor tăi!</span>
         </div>
         <div className="header-right">
           <span className="username">Salut, {user.userName}!</span>
@@ -312,33 +358,52 @@ function Dashboard({ user, onLogout }) {
                 <div style={styles.balanceLabel}>Balanță:</div>
                 <p style={styles.accountBalance}>{acc.balance} {acc.currency}</p>
               </div>
-              <div style={styles.accountActions}>
-                <button 
-                  style={{...styles.actionButton, ...styles.transferButton}}
-                  onClick={() => {
-                    setFromAccountId(acc.accountId);
-                    setShowTransferForm(true);
-                    setTransferType('funds');
-                  }}
-                >
-                  Mutare fonduri
-                </button>
-                <button 
-                  style={{...styles.actionButton, ...styles.historyButton}}
-                  onClick={() => viewTransactions(acc.accountId)}
-                >
-                  Istoric Tranzacții
-                </button>
-                <button 
-                  style={{...styles.actionButton, ...styles.transferButton}}
-                  onClick={() => {
-                    setFromAccountId(acc.accountId);
-                    setShowTransferForm(true);
-                    setTransferType('user');
-                  }}
-                >
-                  Transfer către alt utilizator
-                </button>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '15px'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '15px'
+                }}>
+                  <button 
+                    style={{...styles.actionButton, ...styles.transferButton}}
+                    onClick={() => {
+                      setFromAccountId(acc.accountId);
+                      setShowTransferForm(true);
+                      setTransferType('funds');
+                    }}
+                  >
+                    Mutare fonduri
+                  </button>
+                  <button 
+                    style={{...styles.actionButton, ...styles.transferButton}}
+                    onClick={() => {
+                      setFromAccountId(acc.accountId);
+                      setShowTransferForm(true);
+                      setTransferType('user');
+                    }}
+                  >
+                    Transfer către alt utilizator
+                  </button>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end'
+                }}>
+                  <button 
+                    style={{
+                      ...styles.actionButton, 
+                      ...styles.historyButton,
+                      height: '100%'
+                    }}
+                    onClick={() => viewTransactions(acc.accountId)}
+                  >
+                    Istoric Tranzacții
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -618,6 +683,19 @@ function Dashboard({ user, onLogout }) {
               {message}
             </div>
           )}
+        </div>
+      )}
+      
+      {/* Notificare de confirmare pentru transfer */}
+      {showNotification && (
+        <div style={{
+          ...styles.notification,
+          ...styles.successNotification
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '16px' }}>✓</span>
+            <span>{notificationMessage}</span>
+          </div>
         </div>
       )}
     </div>
