@@ -125,6 +125,56 @@ const styles = {
     backgroundColor: '#e6f4ea',
     color: '#137333',
     border: '1px solid #ceead6'
+  },
+  // Stiluri pentru lista de tranzacții
+  transactionHistoryContainer: {
+    marginTop: '20px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '12px',
+    padding: '20px',
+    border: '1px solid #e0e0e0'
+  },
+  transactionHistoryTitle: {
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#202124',
+    marginBottom: '15px',
+    padding: '0 0 10px 0',
+    borderBottom: '1px solid #e0e0e0'
+  },
+  transactionList: {
+    listStyle: 'none',
+    padding: '0',
+    margin: '0',
+    maxHeight: '300px',
+    overflowY: 'auto'
+  },
+  transactionItem: {
+    padding: '12px 10px',
+    borderBottom: '1px solid #eaeaea',
+    fontSize: '14px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  transactionDate: {
+    color: '#5f6368',
+    fontSize: '12px'
+  },
+  transactionAmount: {
+    fontWeight: '500'
+  },
+  incomingTransaction: {
+    color: '#137333'
+  },
+  outgoingTransaction: {
+    color: '#c5221f'
+  },
+  noTransactions: {
+    textAlign: 'center',
+    padding: '20px',
+    color: '#5f6368',
+    fontStyle: 'italic'
   }
 };
 
@@ -147,7 +197,9 @@ function Dashboard({ user, onLogout }) {
   // Nou state pentru notificarea de confirmare a transferului
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
-
+  // Nou state pentru a controla afișarea istoricului de tranzacții
+  const [showTransactionHistory, setShowTransactionHistory] = useState({});
+  const [loadingTransactions, setLoadingTransactions] = useState({});
 
   const fetchAccounts = async () => {
     try {
@@ -178,62 +230,61 @@ function Dashboard({ user, onLogout }) {
   };
 
   const transferFunds = async () => {
-  const parsedAmount = parseFloat(transferAmount);
-  if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    setMessageType('error');
-    setMessage("Suma introdusă nu este validă.");
-    return;
-  }
-
-  if (fromAccountId === toAccountId) {
-    setMessageType('error');
-    setMessage("Nu poți transfera către același cont.");
-    return;
-  }
-
-  try {
-  const response = await fetch('https://localhost:7157/api/Transactions/transfer', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fromAccountId,
-      toAccountId,
-      amount: parsedAmount,
-      currency: transferCurrency,
-      transactionType: "Transfer",
-      fromUserName,   // din state
-      toUserName
-    }),
-  });
-
-  if (response.ok) {
-    setMessageType('success');
-    setMessage("Transfer realizat cu succes!");
-    showConfirmationNotification?.("Transfer realizat cu succes!");
-    await fetchAccounts?.();
-    setShowTransferForm(false);
-    setTransferAmount('');
-    setTransferCurrency('RON');
-  } else {
-    const contentType = response.headers.get("Content-Type");
-    let errorText = '';
-
-    if (contentType && contentType.includes("application/json")) {
-      const errorData = await response.json();
-      errorText = errorData.message || JSON.stringify(errorData);
-    } else {
-      errorText = await response.text(); // Fallback pentru HTML sau text
+    const parsedAmount = parseFloat(transferAmount);
+    if (!parsedAmount || parsedAmount <= 0) {
+      setMessageType('error');
+      setMessage("Suma introdusă nu este validă.");
+      return;
     }
 
-    setMessageType('error');
-    setMessage("Eroare la transfer: " + errorText);
-  }
-} catch (error) {
-  setMessageType('error');
-  setMessage("Eroare de rețea: " + error.message);
-}
-}
+    if (fromAccountId === toAccountId) {
+      setMessageType('error');
+      setMessage("Nu poți transfera către același cont.");
+      return;
+    }
 
+    try {
+      const response = await fetch('https://localhost:7157/api/Transactions/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromAccountId,
+          toAccountId,
+          amount: parsedAmount,
+          currency: transferCurrency,
+          transactionType: "Transfer"
+        }),
+      });
+
+      if (response.ok) {
+        setMessageType('success');
+        setMessage("Transfer realizat cu succes!");
+        // Afișăm notificarea de confirmare
+        showConfirmationNotification("Transfer realizat cu succes!");
+        await fetchAccounts();
+        setShowTransferForm(false);
+        setTransferAmount('');
+        setTransferCurrency('RON');
+        
+        // Actualizăm tranzacțiile pentru contul sursă după un transfer reușit
+        if (showTransactionHistory[fromAccountId]) {
+          fetchTransactions(fromAccountId);
+        }
+      } else {
+        const errorData = await response.json();
+        setMessageType('error');
+        setMessage("Eroare la transfer: " + (errorData.message || "necunoscută"));
+      }
+    } catch (error) {
+      setMessageType('error');
+      setMessage("Eroare: " + error.message);
+    }
+
+    setTimeout(() => {
+      setMessage('');
+      setMessageType('');
+    }, 5000);
+  };
 
   const transferBetweenUsers = async () => {
     const parsedAmount = parseFloat(amount);
@@ -272,6 +323,13 @@ function Dashboard({ user, onLogout }) {
         setAmount('');
         setCurrency('RON');
         setToUserName('');
+        
+        // Actualizăm tranzacțiile pentru toate conturile după un transfer între utilizatori
+        accounts.forEach(acc => {
+          if (showTransactionHistory[acc.accountId]) {
+            fetchTransactions(acc.accountId);
+          }
+        });
       } else {
         const errorData = await response.json();
         setMessageType('error');
@@ -290,13 +348,15 @@ function Dashboard({ user, onLogout }) {
 
   const fetchTransactions = async (accountId) => {
     try {
+      setLoadingTransactions(prev => ({ ...prev, [accountId]: true }));
+      
       const response = await fetch(`https://localhost:7157/api/Transactions/account/${accountId}`);
       if (!response.ok) {
         throw new Error("Nu s-au putut prelua tranzacțiile.");
       }
 
       const data = await response.json();
-      setTransactions((prev) => ({ ...prev, [accountId]: data }));
+      setTransactions(prev => ({ ...prev, [accountId]: data }));
     } catch (error) {
       console.error("Eroare la preluarea tranzacțiilor:", error);
       setMessageType("error");
@@ -305,24 +365,30 @@ function Dashboard({ user, onLogout }) {
         setMessage("");
         setMessageType("");
       }, 4000);
+    } finally {
+      setLoadingTransactions(prev => ({ ...prev, [accountId]: false }));
     }
   };
 
-  const viewTransactions = async (accountId) => {
-    await fetchTransactions(accountId);
-    const trans = transactions[accountId] || [];
-
-    if (trans.length === 0) {
-      setMessageType("info");
-      setMessage("Nicio tranzacție înregistrată.");
-      return;
+  const toggleTransactionHistory = async (accountId) => {
+    const currentValue = showTransactionHistory[accountId] || false;
+    setShowTransactionHistory(prev => ({ ...prev, [accountId]: !currentValue }));
+    
+    if (!currentValue && !transactions[accountId]) {
+      await fetchTransactions(accountId);
     }
+  };
 
-    const formatted = trans.map((t) =>
-      `→ De la contul ${t.fromAccountId} către ${t.toAccountId} — ${t.amount} ${t.currency} (${new Date(t.transactionDate).toLocaleString()})`
-    );
-
-    alert("Istoric tranzacții:\n\n" + formatted.join("\n"));
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('ro-RO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
   };
 
   const accountTypes = [...new Set(accounts.map((acc) => acc.accountType))];
@@ -404,14 +470,60 @@ function Dashboard({ user, onLogout }) {
                     style={{
                       ...styles.actionButton, 
                       ...styles.historyButton,
-                      height: '100%'
+                      height: '100%',
+                      backgroundColor: showTransactionHistory[acc.accountId] ? '#e8f0fe' : '#f1f3f4',
+                      color: showTransactionHistory[acc.accountId] ? '#1a73e8' : '#5f6368',
+                      border: showTransactionHistory[acc.accountId] ? '1px solid #d2e3fc' : 'none'
                     }}
-                    onClick={() => viewTransactions(acc.accountId)}
+                    onClick={() => toggleTransactionHistory(acc.accountId)}
                   >
                     Istoric Tranzacții
                   </button>
                 </div>
               </div>
+              
+              {/* Secțiunea de istoric tranzacții */}
+              {showTransactionHistory[acc.accountId] && (
+                <div style={styles.transactionHistoryContainer}>
+                  <h4 style={styles.transactionHistoryTitle}>Istoric Tranzacții</h4>
+                  
+                  {loadingTransactions[acc.accountId] ? (
+                    <div style={{ textAlign: 'center', padding: '20px' }}>
+                      Încărcare tranzacții...
+                    </div>
+                  ) : transactions[acc.accountId] && transactions[acc.accountId].length > 0 ? (
+                    <ul style={styles.transactionList}>
+                      {transactions[acc.accountId].map((transaction, index) => {
+                        const isIncoming = transaction.toAccountId === acc.accountId;
+                        return (
+                          <li key={index} style={styles.transactionItem}>
+                            <div>
+                              <span>
+                                {isIncoming 
+                                  ? `→ De la contul ${transaction.fromAccountId}` 
+                                  : `→ Către contul ${transaction.toAccountId}`}
+                              </span>
+                              <div style={styles.transactionDate}>
+                                {formatDate(transaction.transactionDate)}
+                              </div>
+                            </div>
+                            <span style={{
+                              ...styles.transactionAmount,
+                              ...(isIncoming ? styles.incomingTransaction : styles.outgoingTransaction)
+                            }}>
+                              {isIncoming ? '+' : '-'}{transaction.amount} {transaction.currency}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div style={styles.noTransactions}>
+                      Nu există tranzacții pentru acest cont.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
       </div>
