@@ -252,7 +252,9 @@ function Dashboard({ user, onLogout }) {
           toAccountId,
           amount: parsedAmount,
           currency: transferCurrency,
-          transactionType: "Transfer"
+          transactionType: "Transfer",
+          fromUserName,   
+        toUserName
         }),
       });
 

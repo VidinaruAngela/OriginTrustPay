@@ -187,7 +187,7 @@ namespace TrustPay.Controllers
                 .Select(t => new
                 {
                     Message = t.FromAccountId == accountId
-                        ? $"🡒 Către contul  {t.ToAccount.User.UserName} — {t.Amount} {t.Currency} ({t.TransactionDate.ToString("dd.MM.yyyy, HH:mm")})"
+                        ? $"🡒 Către contul {t.ToAccount.User.UserName} — {t.Amount} {t.Currency} ({t.TransactionDate.ToString("dd.MM.yyyy, HH:mm")})"
                         : $"🡐 De la contul {t.FromAccount.User.UserName} — {t.Amount} {t.Currency} ({t.TransactionDate.ToString("dd.MM.yyyy, HH:mm")})"
                 })
                 .ToListAsync();
